@@ -50,17 +50,19 @@ router.post('/upload', upload.single("file"), async(req, res) => {
         const embeddings = await helpers.generatePageEmbeddings(extractedText);
         
         // Upload file to S3
-        const uploadedFileUrl = await helpers.uploadFile(fileBuffer, fileName, userId);
+        const uploadResult = await helpers.uploadFile(fileBuffer, fileName, userId);
         
         // Create file record in database
         const file = await fileModel.create({
             userId,
             fileName,
-            fileUrl: uploadedFileUrl,
+            fileUrl: uploadResult.url,
             fileSize: req.file.size,
             processed: true,
             embeddings,
-            metadata: { extractedText }
+            metadata: { extractedText },
+            pageCount: extractedText.length,
+            s3Key: uploadResult.key
         });
 
         // Store vectors in Pinecone with unique IDs
@@ -125,6 +127,81 @@ router.get("/:fileId", async(req, res) => {
     } catch (error) {
         console.error("Error fetching file:", error);
         res.status(500).json({ message: "Failed to fetch file" });
+    }
+});
+
+router.delete("/:fileId", async(req, res) => {
+    try {
+        const { fileId } = req.params;
+        const userId = req.user.userId;
+        
+        console.log(`Delete request for file: ${fileId} by user: ${userId}`);
+        
+        // Validate ObjectId format
+        if (!fileId.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({ message: "Invalid file ID format" });
+        }
+        
+        // Find the file to ensure it exists and belongs to the user
+        const file = await fileModel.findOne({ _id: fileId, userId });
+        
+        if (!file) {
+            return res.status(404).json({ message: "File not found or you don't have permission to delete it" });
+        }
+        
+        console.log(`Found file to delete: ${file.fileName}`);
+        
+        // Delete vectors from Pinecone
+        try {
+            // Get all vector IDs for this file (they follow the pattern: fileId_page_X)
+            const vectorIds = [];
+            const pageCount = file.pageCount || (file.embeddings ? file.embeddings.length : 0);
+            
+            for (let i = 0; i < pageCount; i++) {
+                vectorIds.push(`${fileId}_page_${i}`);
+            }
+            
+            if (vectorIds.length > 0) {
+                await index.deleteMany(vectorIds);
+                console.log(`Deleted ${vectorIds.length} vectors from Pinecone for file: ${file.fileName}`);
+            }
+        } catch (pineconeError) {
+            console.error("Error deleting vectors from Pinecone:", pineconeError);
+            // Continue with deletion even if Pinecone fails
+        }
+        
+        // Delete from S3 if S3Key exists
+        try {
+            let s3Key = file.s3Key;
+            
+            // For backwards compatibility, extract key from URL if s3Key doesn't exist
+            if (!s3Key && file.fileUrl) {
+                const urlParts = file.fileUrl.split('/');
+                s3Key = urlParts[urlParts.length - 1];
+            }
+            
+            if (s3Key) {
+                await helpers.deleteFromS3(s3Key);
+                console.log(`Deleted file from S3: ${s3Key}`);
+            }
+        } catch (s3Error) {
+            console.error("Error deleting file from S3:", s3Error);
+            // Continue with deletion even if S3 fails
+        }
+        
+        // Delete from MongoDB
+        await fileModel.deleteOne({ _id: fileId, userId });
+        console.log(`Successfully deleted file from database: ${file.fileName}`);
+        
+        res.status(200).json({ 
+            message: "File deleted successfully",
+            fileName: file.fileName,
+            fileId: fileId
+        });
+        
+    } catch (error) {
+        console.error("Error deleting file:", error);
+        res.status(500).json({ message: "Failed to delete file" });
     }
 });
 

@@ -120,3 +120,21 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Ultra-mobile optimizations */
+@media (max-width: 400px) {
+  .ultra-mobile-compact {
+    padding-left: 0.125rem;
+    padding-right: 0.125rem;
+  }
+  
+  .ultra-mobile-text {
+    font-size: 10px;
+    line-height: 1.2;
+  }
+  
+  .ultra-mobile-button {
+    height: 14px;
+    width: 14px;
+  }
+}

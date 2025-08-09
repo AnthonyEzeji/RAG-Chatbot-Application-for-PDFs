@@ -2,7 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken')
 const fs = require( "fs");
 
-const { S3Client, PutObjectCommand,GetObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 
 const pdfParse = require("pdf-parse") ;
 const s3 = new S3Client({ region: process.env.AWS_REGION });
@@ -119,10 +119,31 @@ class Helpers {
             const output = await this.s3.send(command);
             console.log("S3 upload successful:", output);
             
-            return `https://${params.Bucket}.s3.amazonaws.com/${params.Key}`;
+            return {
+                url: `https://${params.Bucket}.s3.amazonaws.com/${params.Key}`,
+                key: uniqueFileName
+            };
         } catch (error) {
             console.error("S3 upload error:", error);
             throw new Error("Failed to upload file to S3");
+        }
+    }
+
+    async deleteFromS3(s3Key) {
+        try {
+            const params = {
+                Bucket: process.env.S3_BUCKET,
+                Key: s3Key,
+            };
+
+            const command = new DeleteObjectCommand(params);
+            const output = await this.s3.send(command);
+            console.log("S3 delete successful:", output);
+            
+            return output;
+        } catch (error) {
+            console.error("S3 delete error:", error);
+            throw new Error("Failed to delete file from S3");
         }
     }
 }

@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState } from "react";
 import { useRouter } from 'next/navigation';
-import { Upload, FileText, MessageSquare, User, LogOut, Plus, FileIcon } from 'lucide-react';
+import { Upload, FileText, MessageSquare, User, LogOut, Plus, FileIcon, Trash2 } from 'lucide-react';
 import Chat from "./components/Chat";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +24,7 @@ export default function Home() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [user, setUser] = useState(null);
     const [authChecking, setAuthChecking] = useState(true);
+    const [deleting, setDeleting] = useState(null); // fileId being deleted
 
     const router = useRouter();
 
@@ -172,6 +173,51 @@ export default function Home() {
         router.push('/auth/login');
     };
 
+    const handleDeleteFile = async (fileId, fileName) => {
+        if (!confirm(`Are you sure you want to delete "${fileName}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        setDeleting(fileId);
+        
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`http://localhost:5050/files/${fileId}`, {
+                method: "DELETE",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Remove file from local state
+                setFiles(prevFiles => prevFiles.filter(file => file._id !== fileId));
+                
+                // Clear selection if deleted file was selected
+                if (selectedFileId === fileId) {
+                    setSelectedFileId(null);
+                }
+                
+                setUploadSuccess(`File "${data.fileName}" deleted successfully!`);
+                
+                // Clear success message after 3 seconds
+                setTimeout(() => setUploadSuccess(""), 3000);
+            } else {
+                setUploadError(data.message || "Failed to delete file");
+                setTimeout(() => setUploadError(""), 5000);
+            }
+        } catch (error) {
+            console.error("Delete error:", error);
+            setUploadError("Network error occurred during deletion");
+            setTimeout(() => setUploadError(""), 5000);
+        } finally {
+            setDeleting(null);
+        }
+    };
+
     const formatFileSize = (bytes) => {
         if (bytes === 0) return '0 Bytes';
         const k = 1024;
@@ -227,10 +273,10 @@ export default function Home() {
                 </div>
             </header>
 
-            <div className="container mx-auto px-4 py-8">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
                     {/* Left Column - File Management */}
-                    <div className="lg:col-span-1 space-y-6">
+                    <div className="w-full lg:col-span-2 space-y-4 sm:space-y-6">
                         {/* Upload Section */}
                         <Card>
                             <CardHeader>
@@ -285,7 +331,7 @@ export default function Home() {
                         </Card>
 
                         {/* Files List */}
-                        <Card>
+                        <Card className="w-full overflow-hidden">
                             <CardHeader>
                                 <CardTitle className="flex items-center space-x-2">
                                     <FileText className="h-5 w-5" />
@@ -295,36 +341,39 @@ export default function Home() {
                                     Select a document to start chatting
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="p-4 w-full max-w-full">
                                 {loading ? (
                                     <div className="flex items-center justify-center py-8">
                                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
                                     </div>
                                 ) : (
-                                    <ScrollArea className="h-64">
-                                        {files.length === 0 ? (
-                                            <div className="text-center py-8 text-muted-foreground">
-                                                <FileIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                                <p className="text-sm">No documents uploaded yet</p>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                {files.map((file) => (
+                                    <ScrollArea className="h-80 w-full">
+                                        <div className="pr-4 max-w-full">
+                                            {files.length === 0 ? (
+                                                <div className="text-center py-8 text-muted-foreground">
+                                                    <FileIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                                    <p className="text-sm">No documents uploaded yet</p>
+                                                </div>
+                                            ) : (
+                                                                                                    <div className="space-y-1.5">
+                                                    {files.map((file) => (
                                                     <Card 
                                                         key={file._id}
-                                                        className={`cursor-pointer transition-all hover:shadow-md ${
+                                                        className={`w-full max-w-full transition-all hover:shadow-md ${
                                                             file._id === selectedFileId 
                                                                 ? "ring-2 ring-primary bg-primary/5" 
                                                                 : "hover:bg-muted/50"
                                                         }`}
-                                                        onClick={() => handleSelectedFile(file._id)}
                                                     >
-                                                        <CardContent className="p-4">
-                                                            <div className="flex items-start justify-between">
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="font-medium text-sm truncate">{file.fileName}</p>
-                                                                    <div className="flex items-center space-x-2 mt-1">
-                                                                        <Badge variant="secondary" className="text-xs">
+                                                        <CardContent className="p-2 sm:p-3 w-full overflow-hidden">
+                                                            <div className="flex items-center gap-2 w-full">
+                                                                <div 
+                                                                    className="flex-1 min-w-0 cursor-pointer"
+                                                                    onClick={() => handleSelectedFile(file._id)}
+                                                                >
+                                                                    <p className="font-medium text-sm truncate mb-1" title={file.fileName}>{file.fileName}</p>
+                                                                    <div className="flex items-center space-x-1 flex-wrap">
+                                                                        <Badge variant="secondary" className="text-xs h-4 px-1.5">
                                                                             {formatFileSize(file.fileSize)}
                                                                         </Badge>
                                                                         <span className="text-xs text-muted-foreground">
@@ -332,13 +381,32 @@ export default function Home() {
                                                                         </span>
                                                                     </div>
                                                                 </div>
-                                                                <FileIcon className="h-4 w-4 text-muted-foreground ml-2" />
+                                                                <div className="flex-shrink-0 w-8 flex justify-center">
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleDeleteFile(file._id, file.fileName);
+                                                                        }}
+                                                                        disabled={deleting === file._id}
+                                                                        className="h-6 w-6 p-0 border border-red-400 bg-red-100 text-red-700 hover:bg-red-600 hover:text-white flex-shrink-0"
+                                                                        title="Delete document"
+                                                                    >
+                                                                        {deleting === file._id ? (
+                                                                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current"></div>
+                                                                        ) : (
+                                                                            <Trash2 className="h-3 w-3" />
+                                                                        )}
+                                                                    </Button>
+                                                                </div>
                                                             </div>
                                                         </CardContent>
                                                     </Card>
-                                                ))}
-                                            </div>
-                                        )}
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     </ScrollArea>
                                 )}
                             </CardContent>
@@ -346,7 +414,7 @@ export default function Home() {
                     </div>
 
                     {/* Right Column - Chat */}
-                    <div className="lg:col-span-2">
+                    <div className="w-full lg:col-span-3">
                         <Chat selectedFileId={selectedFileId} />
                     </div>
                 </div>

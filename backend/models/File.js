@@ -30,6 +30,12 @@ const FileSchema = new mongoose.Schema({
     },
     metadata: {
         type: Object  
+    },
+    pageCount: {
+        type: Number
+    },
+    s3Key: {
+        type: String
     }
 });
 
