@@ -23,20 +23,37 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [user, setUser] = useState(null);
+    const [authChecking, setAuthChecking] = useState(true);
 
     const router = useRouter();
 
     // Check authentication on mount
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        const userData = localStorage.getItem('user');
-        if (!token || !userData) {
-            router.push('/auth/login');
-            return;
-        }
-        setUser(JSON.parse(userData));
-        setIsAuthenticated(true);
-    }, [router]);
+        const checkAuth = () => {
+            try {
+                const token = localStorage.getItem('token');
+                const userData = localStorage.getItem('user');
+                
+                if (!token || !userData) {
+                    setAuthChecking(false);
+                    router.push('/auth/login');
+                    return;
+                }
+                
+                setUser(JSON.parse(userData));
+                setIsAuthenticated(true);
+            } catch (error) {
+                console.error('Auth check error:', error);
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                router.push('/auth/login');
+            } finally {
+                setAuthChecking(false);
+            }
+        };
+
+        checkAuth();
+    }, []); // Remove router dependency to prevent infinite re-renders
 
     useEffect(() => {
         if (!isAuthenticated) return;
@@ -79,7 +96,7 @@ export default function Home() {
         };
 
         fetchFiles();
-    }, [isAuthenticated, router]);
+    }, [isAuthenticated]); // Remove router dependency to prevent infinite re-renders
 
     const handleUploadFileChange = (e) => {
         const selectedFile = e.target.files?.[0];
@@ -163,7 +180,7 @@ export default function Home() {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-    if (!isAuthenticated) {
+    if (authChecking || !isAuthenticated) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-background">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
