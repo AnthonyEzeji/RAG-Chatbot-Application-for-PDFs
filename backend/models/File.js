@@ -11,25 +11,25 @@ const FileSchema = new mongoose.Schema({
         required: true
     },
     fileUrl: {
-        type: String, // S3 URL where the PDF is stored
+        type: String, 
         required: true
     },
     fileSize: {
-        type: Number // File size in bytes
+        type: Number 
     },
     uploadedAt: {
         type: Date,
         default: Date.now
     },
     processed: {
-        type: Boolean, // Indicates if text extraction is complete
+        type: Boolean, 
         default: false
     },
     embeddings: {
-        type: Array // Stores vector embeddings for AI retrieval
+        type: Array  
     },
     metadata: {
-        type: Object // Holds extracted document details (title, keywords, etc.)
+        type: Object  
     }
 });
 

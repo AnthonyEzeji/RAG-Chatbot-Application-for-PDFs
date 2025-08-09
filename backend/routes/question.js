@@ -32,7 +32,7 @@ router.post("/:fileId", async (req, res) => {
             { role: "system", content: "You are an assistant answering questions using provided context." }
         ];
 
-        // Add the user's question to the history
+        
         req.session.chatHistory.push({ role: "user", content: req.body.userQuestion });
         const fileId = req.params.fileId;
         const file = await fileModel.findById(fileId);
@@ -44,7 +44,7 @@ router.post("/:fileId", async (req, res) => {
         const pages = file.metadata.extractedText;
         const pageEmbeddings = file.embeddings;
 
-        // ✅ Store embeddings in Pinecone using `upsertRecords()`
+        
         await index.upsert(
              pageEmbeddings.map((embedding, i) => ({
                 id: `page_${i}`,
@@ -54,7 +54,7 @@ router.post("/:fileId", async (req, res) => {
         );
         
 
-        // ✅ Convert user question into an embedding for search
+        
         const queryEmbeddingResponse = await openai.embeddings.create({
             model: "text-embedding-ada-002",
             input: req.body.userQuestion, // Take user input dynamically
@@ -62,7 +62,7 @@ router.post("/:fileId", async (req, res) => {
 
         const queryEmbedding = queryEmbeddingResponse.data[0].embedding;
 
-        // ✅ Query Pinecone for best-matching records
+         
         const results = await index.query({
             vector: queryEmbedding,
             topK: 3,
@@ -71,7 +71,7 @@ router.post("/:fileId", async (req, res) => {
      
         const matchedPages = results.matches.map((match) => match.metadata.text);
         
-        // ✅ Use retrieved text for GPT-based Q&A
+         
         const response = await openai.chat.completions.create({
             model: "gpt-4-turbo",
             messages: req.session.chatHistory,

@@ -1,11 +1,17 @@
 "use client"
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from 'next/navigation';
-import io from "socket.io-client";
+import { Upload, FileText, MessageSquare, User, LogOut, Plus, FileIcon } from 'lucide-react';
 import Chat from "./components/Chat";
-import Socket from "./components/Socket";
-import { ClipLoader } from "react-spinners";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarFallback, AvatarInitials } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Separator } from "@/components/ui/separator";
 
 export default function Home() {
     const [uploading, setUploading] = useState(false);
@@ -16,16 +22,19 @@ export default function Home() {
     const [uploadSuccess, setUploadSuccess] = useState("");
     const [loading, setLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [user, setUser] = useState(null);
 
     const router = useRouter();
 
     // Check authentication on mount
     useEffect(() => {
         const token = localStorage.getItem('token');
-        if (!token) {
+        const userData = localStorage.getItem('user');
+        if (!token || !userData) {
             router.push('/auth/login');
             return;
         }
+        setUser(JSON.parse(userData));
         setIsAuthenticated(true);
     }, [router]);
 
@@ -75,12 +84,10 @@ export default function Home() {
     const handleUploadFileChange = (e) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
-            // Validate file type
             if (selectedFile.type !== 'application/pdf') {
                 setUploadError("Please select a PDF file");
                 return;
             }
-            // Validate file size (10MB limit)
             if (selectedFile.size > 10 * 1024 * 1024) {
                 setUploadError("File size must be less than 10MB");
                 return;
@@ -90,9 +97,8 @@ export default function Home() {
         }
     };
 
-    const handleSelectedFile = (e) => {
-        setSelectedFileId(e.currentTarget.id);
-        console.log("Selected file ID:", e.currentTarget.id);
+    const handleSelectedFile = (fileId) => {
+        setSelectedFileId(fileId);
     };
 
     const handleUpload = async () => {
@@ -121,9 +127,7 @@ export default function Home() {
             if (response.ok) {
                 setUploadSuccess(`File "${data.fileName}" uploaded successfully! (${data.pageCount} pages processed)`);
                 setFile(null);
-                // Reset file input
-                const fileInput = document.querySelector('input[type="file"]');
-                if (fileInput) fileInput.value = '';
+                document.querySelector('input[type="file"]').value = '';
                 
                 // Refresh file list
                 const filesResponse = await fetch('http://localhost:5050/files', {
@@ -145,84 +149,191 @@ export default function Home() {
         }
     };
 
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        router.push('/auth/login');
+    };
+
+    const formatFileSize = (bytes) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
     if (!isAuthenticated) {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-900">
-                <ClipLoader color="white" size={50} />
+            <div className="flex items-center justify-center min-h-screen bg-background">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
         );
     }
 
     return (
-        <div className="grid grid-rows-[auto_1fr_auto] items-center justify-items-center min-h-screen p-8 pb-20 gap-8 sm:p-20 bg-gray-900 text-white">
-            
-            {/* Upload Section */}
-            <div className="flex flex-col items-center gap-4 p-6 bg-gray-800 rounded-lg shadow-lg w-full max-w-lg">
-                <h2 className="text-lg font-semibold text-gray-300">Upload PDF</h2> 
-                <input
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleUploadFileChange}
-                    className="block w-full text-sm text-gray-300 border border-gray-600 rounded-lg cursor-pointer bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                
-                {uploadError && (
-                    <p className="text-sm text-red-400">{uploadError}</p>
-                )}
-                
-                {uploadSuccess && (
-                    <p className="text-sm text-green-400">{uploadSuccess}</p>
-                )}
-                
-                <button 
-                    onClick={handleUpload} 
-                    disabled={!file || uploading}
-                    className="px-5 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition focus:ring-2 focus:ring-blue-500 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {uploading && <ClipLoader color="white" size={20} className="mr-2" />} 
-                    {uploading ? "Uploading..." : "Upload 🚀"}
-                </button>
-            </div>
-
-            {/* File List */}
-            <div className="w-full max-w-lg p-6 bg-gray-800 rounded-lg shadow-lg">
-                <h2 className="text-lg font-semibold mb-4">Uploaded Files</h2>
-                
-                {loading ? (
-                    <div className="flex items-center justify-center h-40">
-                        <ClipLoader color="white" size={30} />
+        <div className="min-h-screen bg-background">
+            {/* Header */}
+            <header className="border-b bg-card">
+                <div className="container mx-auto px-4 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-2">
+                                <MessageSquare className="h-6 w-6 text-primary" />
+                                <h1 className="text-xl font-bold">RAG Assistant</h1>
+                            </div>
+                        </div>
+                        
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                                    <Avatar className="h-8 w-8">
+                                        <AvatarFallback>
+                                            {user?.firstName?.[0]}{user?.lastName?.[0]}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-56" align="end" forceMount>
+                                <div className="flex flex-col space-y-1 p-2">
+                                    <p className="text-sm font-medium leading-none">{user?.firstName} {user?.lastName}</p>
+                                    <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                                </div>
+                                <Separator />
+                                <DropdownMenuItem onClick={handleLogout}>
+                                    <LogOut className="mr-2 h-4 w-4" />
+                                    <span>Log out</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
-                ) : (
-                    <div className="h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-800 rounded-lg p-2">
-                        {files.length === 0 ? (
-                            <p className="text-gray-400 text-center py-8">No files uploaded yet</p>
-                        ) : (
-                            <ul className="space-y-3">
-                                {files.map((file, fileIdx) => (
-                                    <li 
-                                        key={file._id} 
-                                        id={file._id.toString()} 
-                                        onClick={handleSelectedFile} 
-                                        className={`p-2 cursor-pointer transition rounded-lg ${
-                                            file._id === selectedFileId 
-                                                ? "bg-blue-600 hover:bg-blue-500" 
-                                                : "bg-gray-700 hover:bg-blue-300 hover:text-black"
-                                        }`}
-                                    >
-                                        <div className="font-medium">{file.fileName}</div>
-                                        <div className="text-xs text-gray-400">
-                                            {(file.fileSize / 1024).toFixed(1)} KB • {new Date(file.uploadedAt).toLocaleDateString()}
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                )}
-            </div>
+                </div>
+            </header>
 
-            {/* Chat Component */}
-            <Chat key={selectedFileId} selectedFileId={selectedFileId} />
+            <div className="container mx-auto px-4 py-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Left Column - File Management */}
+                    <div className="lg:col-span-1 space-y-6">
+                        {/* Upload Section */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center space-x-2">
+                                    <Upload className="h-5 w-5" />
+                                    <span>Upload Document</span>
+                                </CardTitle>
+                                <CardDescription>
+                                    Upload a PDF document to chat with its content
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <Input
+                                        type="file"
+                                        accept=".pdf"
+                                        onChange={handleUploadFileChange}
+                                        className="cursor-pointer"
+                                    />
+                                </div>
+                                
+                                {uploadError && (
+                                    <Alert variant="destructive">
+                                        <AlertDescription>{uploadError}</AlertDescription>
+                                    </Alert>
+                                )}
+                                
+                                {uploadSuccess && (
+                                    <Alert>
+                                        <AlertDescription className="text-green-700">{uploadSuccess}</AlertDescription>
+                                    </Alert>
+                                )}
+                                
+                                <Button 
+                                    onClick={handleUpload} 
+                                    disabled={!file || uploading}
+                                    className="w-full"
+                                >
+                                    {uploading ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                            Uploading...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Upload Document
+                                        </>
+                                    )}
+                                </Button>
+                            </CardContent>
+                        </Card>
+
+                        {/* Files List */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center space-x-2">
+                                    <FileText className="h-5 w-5" />
+                                    <span>Your Documents</span>
+                                </CardTitle>
+                                <CardDescription>
+                                    Select a document to start chatting
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {loading ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                                    </div>
+                                ) : (
+                                    <ScrollArea className="h-64">
+                                        {files.length === 0 ? (
+                                            <div className="text-center py-8 text-muted-foreground">
+                                                <FileIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                                <p className="text-sm">No documents uploaded yet</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {files.map((file) => (
+                                                    <Card 
+                                                        key={file._id}
+                                                        className={`cursor-pointer transition-all hover:shadow-md ${
+                                                            file._id === selectedFileId 
+                                                                ? "ring-2 ring-primary bg-primary/5" 
+                                                                : "hover:bg-muted/50"
+                                                        }`}
+                                                        onClick={() => handleSelectedFile(file._id)}
+                                                    >
+                                                        <CardContent className="p-4">
+                                                            <div className="flex items-start justify-between">
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="font-medium text-sm truncate">{file.fileName}</p>
+                                                                    <div className="flex items-center space-x-2 mt-1">
+                                                                        <Badge variant="secondary" className="text-xs">
+                                                                            {formatFileSize(file.fileSize)}
+                                                                        </Badge>
+                                                                        <span className="text-xs text-muted-foreground">
+                                                                            {new Date(file.uploadedAt).toLocaleDateString()}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <FileIcon className="h-4 w-4 text-muted-foreground ml-2" />
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </ScrollArea>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Right Column - Chat */}
+                    <div className="lg:col-span-2">
+                        <Chat selectedFileId={selectedFileId} />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
