@@ -6,8 +6,8 @@ export default function Chat({selectedFileId}) {
     const [chatLog, setChatLog] = useState([]);
     const [message, setMessage] = useState("");
     const [socket, setSocket] = useState(null);
-console.log('this is the selected file id', selectedFileId)
-    // ✅ Retrieve token and userId from localStorage
+    console.log('this is the selected file id', selectedFileId)
+ 
     const [token, setToken] = useState(null);
     const [userData,setUserData] = useState(null)
 
@@ -22,27 +22,45 @@ console.log('this is the selected file id', selectedFileId)
 
     useEffect(() => {
      
-        if (!userId || !token) return; // ✅ Prevents errors if user is not logged in
+        if (!userId || !token) return; 
 
         const newSocket = io("http://localhost:5050", {
-            extraHeaders: { Authorization: `Bearer ${token}` }
+            auth: {
+                token: token
+            }
         });
+        
         newSocket.on('connect', () => {
-            console.log('Connected to server');
+            console.log('Connected to server with authentication');
         });
+
+        newSocket.on('connect_error', (error) => {
+            console.error('Connection failed:', error.message);
+            if (error.message.includes('Authentication error')) {
+                // Handle authentication failure - maybe redirect to login
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = '/auth/login';
+            }
+        });
+        
         setSocket(newSocket);
 
-        // ✅ Load past chat history on connection
+         
         newSocket.on("loadChatHistory", (history) => {
             setChatLog(history.map(({ role, content }) => ({ sender: role === "user" ? "You" : "Bot", text: content })));
         });
 
-        // ✅ Append new bot replies to chat log
+        
         newSocket.on("botReply", (data) => {
-            setChatLog((prev) => [...prev, { sender: "Bot", text: data.answer }]);
+            if (data.error) {
+                setChatLog((prev) => [...prev, { sender: "Bot", text: `Error: ${data.error}` }]);
+            } else {
+                setChatLog((prev) => [...prev, { sender: "Bot", text: data.answer }]);
+            }
         });
 
-        return () => newSocket.disconnect(); // Cleanup on unmount
+        return () => newSocket.disconnect();  
     }, [userId, token]);
 
     const sendMessage = () => {
@@ -50,19 +68,20 @@ console.log('this is the selected file id', selectedFileId)
             alert("Select a file please...")
             return
         }
-        if (!message.trim() || !socket) return; // ✅ Prevent empty messages & invalid socket
+        if (!message.trim() || !socket) return;  
 
-        socket.emit("askQuestion", { userId, fileId:selectedFileId , userQuestion: message });
+        // Remove userId from the emit since it's now authenticated on the server
+        socket.emit("askQuestion", { fileId: selectedFileId, userQuestion: message });
 
-        // ✅ Update chat log immediately with user message
+        
         setChatLog((prev) => [...prev, { sender: "You", text: message }]);
 
-        setMessage(""); // ✅ Clear input after sending
+        setMessage("");  
     };
 
     return (
         <div className="flex flex-col items-center w-full max-w-lg mx-auto p-4 bg-gray-900 rounded-lg shadow-lg">
-        {/* ✅ Chat History */}
+         
         <div className="w-full h-80 overflow-y-auto p-3 bg-gray-800 rounded-lg shadow-md">
             {chatLog.map((msg, i) => (
                 <p key={i} className={`text-sm p-2 rounded-md mb-2 ${msg.sender === "You" ? "bg-blue-500 text-white self-end" : "bg-gray-700 text-gray-300 self-start"}`}>
@@ -71,7 +90,7 @@ console.log('this is the selected file id', selectedFileId)
             ))}
         </div>
     
-        {/* ✅ Message Input */}
+        
         <div className="w-full flex items-center mt-4 space-x-3">
             <input
                 className="flex-1 px-4 py-2 text-white bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
