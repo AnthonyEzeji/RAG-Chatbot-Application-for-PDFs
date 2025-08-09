@@ -12,23 +12,11 @@ async function processUserQuestion(fileId, userQuestion, chatHistory) {
     console.log("Processing user question with file ID:", fileId);
 
     try {
-        // ✅ Retrieve file
+        
         const file = await retrieveFile(fileId);
         if (!file) return "File not found.";
-        const pages = file.metadata.extractedText;
-        const pageEmbeddings = file.embeddings;
         
-console.log("these are the pages of the request doc", pages)
-for (let i = 0; i < pageEmbeddings.length; i++) {
-    await index.update({
-        id: `page_${i}`, // ✅ Each vector must be updated individually
-        values: pageEmbeddings[i], // ✅ Ensure this is an array of numbers
-        metadata: { text: pages[i],fileId, category: "document" }
-    });
-}
-
-
-        // ✅ Get query embedding from OpenAI
+        // Generate query embedding
         const queryEmbeddingResponse = await openai.embeddings.create({
             model: "text-embedding-ada-002",
             input: userQuestion,
@@ -36,7 +24,7 @@ for (let i = 0; i < pageEmbeddings.length; i++) {
 
         const queryEmbedding = queryEmbeddingResponse.data[0].embedding;
 
-        // ✅ Query Pinecone for best-matching pages
+        // Search for relevant content in Pinecone
         const results = await index.query({
             vector: queryEmbedding,
             topK: 4,
@@ -44,26 +32,25 @@ for (let i = 0; i < pageEmbeddings.length; i++) {
             filter: { fileId }
         });
 
-        // ✅ Extract matched page text
+        // Extract matched content
         const matchedPages = results.matches.map((match) => match.metadata.text);
-        console.log("these are the matched pages form vector store",matchedPages)
-        // ✅ Integrate matched page content into chat history
+        console.log("these are the matched pages from vector store", matchedPages);
+        
+        // Add system context with retrieved content
         chatHistory.push({
             role: "system",
             content: `Use the following document excerpts to provide a response: \n\n${matchedPages.join("\n\n")}`
         });
 
-        chatHistory.push({ role: "user", content: userQuestion });
-        if(chatHistory.length>5){
+        // Limit chat history to prevent token overflow
+        if(chatHistory.length > 5){
             chatHistory = chatHistory.slice(-5);
         }
 
-
-        // ✅ Query AI with updated context
+        // Generate response using OpenAI
         const response = await openai.chat.completions.create({
             model: "gpt-4-turbo",
-            messages: chatHistory, // ✅ Includes full conversation and matched pages
-            
+            messages: chatHistory,  
         });
 
         return response.choices[0].message.content;
