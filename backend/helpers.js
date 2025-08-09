@@ -31,8 +31,8 @@ class Helpers {
     
         console.log(`Total pages detected: ${data.numpages}`);
     
-        // ✅ Extract text per page using pdfParse's built-in page separation
-        const pages = data.pages ? data.pages.map(page => page.text) : data.text.split(/\f/); // Uses form feed (\f) as an alternative separator
+        
+        const pages = data.pages ? data.pages.map(page => page.text) : data.text.split(/\f/); 
     
         console.log("Extracted pages:", pages.length);
         
@@ -60,33 +60,52 @@ class Helpers {
     
     
 
-
- authenticateToken(req, res, next) {
-    console.log(req.path)
-    if (!req || !req.path) {
-        return res.status(500).json({ message: "Request object is missing." });
-    }
-    const allowedRoutes = ["/auth/login", "/auth/register","/socket.io"];
-
-    if (allowedRoutes.includes(req.path)) {
-        return next();
-    }
-    const token = req.headers.authorization.split(' ')[1];
-
-    if (!token) {
-        return res.status(403).json({ message: "Unauthorized" });
+    authenticateToken(req, res, next) {
+        console.log("Authenticating request for path:", req.path);
         
-    }
+        if (!req || !req.path) {
+            return res.status(500).json({ message: "Request object is missing." });
+        }
+        
+        const allowedRoutes = ["/auth/login", "/auth/register", "/socket.io"];
 
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-        req.user = decoded; 
-        next(); 
-    } catch (error) {
-        res.status(401).json({ message: "Invalid token" });
+        if (allowedRoutes.includes(req.path)) {
+            return next();
+        }
+        
+        // Check if authorization header exists
+        if (!req.headers.authorization) {
+            return res.status(401).json({ message: "Authorization header missing" });
+        }
+        
+        const authParts = req.headers.authorization.split(' ');
+        if (authParts.length !== 2 || authParts[0] !== 'Bearer') {
+            return res.status(401).json({ message: "Invalid authorization header format. Expected 'Bearer <token>'" });
+        }
+        
+        const token = authParts[1];
+
+        if (!token) {
+            return res.status(401).json({ message: "Token missing from authorization header" });
+        }
+
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+            req.user = decoded; 
+            next(); 
+        } catch (error) {
+            console.error("Token verification error:", error.message);
+            if (error.name === 'TokenExpiredError') {
+                return res.status(401).json({ message: "Token has expired" });
+            } else if (error.name === 'JsonWebTokenError') {
+                return res.status(401).json({ message: "Invalid token" });
+            } else {
+                return res.status(401).json({ message: "Token verification failed" });
+            }
+        }
     }
-}
-    async uploadFile(fileBuffer, fileName,userId) {
+    
+    async uploadFile(fileBuffer, fileName, userId) {
         try {
             const uniqueFileName = this.generateUniqueFileName(fileName, userId);
             const params = {
@@ -97,14 +116,14 @@ class Helpers {
             };
     
             const command = new PutObjectCommand(params);
-            await this.s3.send(command).then(output=>{
-                console.log(output)
-            });
-            return `https://${params.Bucket}.s3.amazonaws.com/${params.Key}`
+            const output = await this.s3.send(command);
+            console.log("S3 upload successful:", output);
+            
+            return `https://${params.Bucket}.s3.amazonaws.com/${params.Key}`;
         } catch (error) {
-            console.log(error)
+            console.error("S3 upload error:", error);
+            throw new Error("Failed to upload file to S3");
         }
-       
     }
 }
 
