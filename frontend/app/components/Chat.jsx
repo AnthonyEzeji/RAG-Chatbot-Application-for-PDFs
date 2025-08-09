@@ -166,7 +166,7 @@ export default function Chat({selectedFileId}) {
 
         return (
             <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-                <div className={`flex max-w-[80%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start space-x-2`}>
+                <div className={`flex max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start space-x-2`}>
                     <Avatar className="h-8 w-8 flex-shrink-0">
                         <AvatarFallback className={`text-xs ${
                             isUser ? 'bg-primary text-primary-foreground' : 
@@ -179,14 +179,14 @@ export default function Chat({selectedFileId}) {
                         </AvatarFallback>
                     </Avatar>
                     
-                    <div className={`rounded-lg px-4 py-2 ${
+                    <div className={`rounded-lg px-4 py-2 min-w-0 break-words overflow-hidden ${
                         isUser ? 'bg-primary text-primary-foreground ml-2' :
                         isSystem && msg.isError ? 'bg-destructive/10 text-destructive border border-destructive/20 mr-2' :
                         'bg-muted text-muted-foreground mr-2'
                     }`}>
-                        <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                        <p className="text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere leading-relaxed">{msg.text}</p>
                         {msg.timestamp && (
-                            <p className="text-xs opacity-70 mt-1">
+                            <p className="text-xs opacity-70 mt-1 break-normal">
                                 {msg.timestamp.toLocaleTimeString()}
                             </p>
                         )}
@@ -197,7 +197,7 @@ export default function Chat({selectedFileId}) {
     };
 
     return (
-        <Card className="h-[600px] flex flex-col">
+        <Card className="h-[600px] flex flex-col overflow-hidden">
             <CardHeader className="flex-shrink-0">
                 <div className="flex items-center justify-between">
                     <div>
@@ -220,9 +220,9 @@ export default function Chat({selectedFileId}) {
                 <Separator />
             </CardHeader>
 
-            <CardContent className="flex-1 flex flex-col min-h-0 p-0">
+            <CardContent className="flex-1 flex flex-col min-h-0 p-0 overflow-hidden">
                 {/* Messages Area */}
-                <ScrollArea className="flex-1 p-4">
+                <ScrollArea className="flex-1 p-4 overflow-hidden">
                     {chatLog.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-center">
                             <div className="space-y-4">
@@ -247,13 +247,13 @@ export default function Chat({selectedFileId}) {
                             {/* Loading indicator */}
                             {isLoading && (
                                 <div className="flex justify-start mb-4">
-                                    <div className="flex items-start space-x-2">
-                                        <Avatar className="h-8 w-8">
+                                    <div className="flex max-w-[85%] items-start space-x-2">
+                                        <Avatar className="h-8 w-8 flex-shrink-0">
                                             <AvatarFallback className="bg-secondary text-secondary-foreground">
                                                 <Bot className="h-4 w-4" />
                                             </AvatarFallback>
                                         </Avatar>
-                                        <div className="bg-muted rounded-lg px-4 py-2">
+                                        <div className="bg-muted rounded-lg px-4 py-2 min-w-0">
                                             <div className="flex items-center space-x-2">
                                                 <div className="animate-pulse flex space-x-1">
                                                     <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
@@ -273,15 +273,15 @@ export default function Chat({selectedFileId}) {
                 </ScrollArea>
 
                 {/* Message Input */}
-                <div className="p-4 border-t bg-muted/5">
-                    <div className="flex space-x-2">
+                <div className="p-4 border-t bg-muted/5 flex-shrink-0">
+                    <div className="flex space-x-2 w-full">
                         <Input
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                             onKeyPress={handleKeyPress}
                             placeholder={selectedFileId ? "Ask a question about the document..." : "Select a document first"}
                             disabled={!selectedFileId || connectionStatus !== "connected"}
-                            className="flex-1"
+                            className="flex-1 min-w-0"
                         />
                         <Button
                             onClick={sendMessage}
